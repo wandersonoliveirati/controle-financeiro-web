@@ -1,304 +1,230 @@
-from flask import Flask, render_template, request, redirect, url_for, flash
-import json
-from pathlib import Path
-from datetime import datetime, timedelta
-import re
 import os
+from flask import Flask, render_template, request, redirect, url_for, flash
+from datetime import datetime, timedelta
+from pathlib import Path
+import json, re
 
+# --- Flask ---
 app = Flask(__name__)
-app.secret_key = "financas-secret"  # ajuste conforme necessário
+app.secret_key = "financas-secret"
 
+# --- DB config (SQLAlchemy) ---
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker, declarative_base, Mapped, mapped_column
+from sqlalchemy import String, Integer, Date, Numeric
+
+DATABASE_URL = os.environ.get("DATABASE_URL", "").replace("postgres://", "postgresql://")
+engine = create_engine(DATABASE_URL or "sqlite:///local.db", future=True)
+SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
+Base = declarative_base()
+
+class Gasto(Base):
+    __tablename__ = "gastos"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    data: Mapped[datetime.date] = mapped_column(Date, nullable=False)
+    categoria: Mapped[str] = mapped_column(String(100), nullable=False)
+    descricao: Mapped[str] = mapped_column(String(500), nullable=True)
+    valor: Mapped[float] = mapped_column(Numeric(12,2), nullable=False)
+
+class Categoria(Base):
+    __tablename__ = "categorias"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    nome: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+
+Base.metadata.create_all(engine)
+
+# --- Arquivo legado para migração inicial ---
 BASE_DIR = Path(__file__).resolve().parent
-DB_PATH = BASE_DIR / "gastos.json"
-
-
-# -------------------- Utilidades --------------------
-def normalize_date(s):
-    """Aceita 'YYYY-MM-DD' ou 'DD/MM/YYYY' e retorna 'YYYY-MM-DD'."""
-    if not s:
-        return None
-    s = str(s).strip()
-    # tenta ISO
-    try:
-        if "-" in s and len(s) >= 10:
-            return datetime.strptime(s[:10], "%Y-%m-%d").strftime("%Y-%m-%d")
-    except Exception:
-        pass
-    # tenta BR
-    try:
-        if "/" in s and len(s) >= 10:
-            return datetime.strptime(s[:10], "%d/%m/%Y").strftime("%Y-%m-%d")
-    except Exception:
-        pass
-    return None
-
+LEGACY_JSON = BASE_DIR / "gastos.json"
 
 def parse_brl_to_float(val):
-    """
-    Converte strings como "R$ 1.234,56" ou "1234,56" para float 1234.56.
-    Aceita números com vírgula ou ponto como separador decimal.
-    """
-    if val is None:
-        return 0.0
-    if isinstance(val, (int, float)):
-        return float(val)
-    s = str(val).strip()
-    # remove R$, espaços e tudo que não é número, vírgula ou ponto e sinal
-    s = re.sub(r"[^0-9,.\-]", "", s)
-    # se houver vírgula, tratamos como BR (pontos de milhar e vírgula decimal)
-    if "," in s:
-        s = s.replace(".", "").replace(",", ".")
-    else:
-        # troca vírgula por ponto (fallback)
-        s = s.replace(",", ".")
-    try:
-        return float(s)
-    except ValueError:
-        return 0.0
+    if val is None: return 0.0
+    if isinstance(val, (int,float)): return float(val)
+    s = re.sub(r"[^0-9,.\-]", "", str(val).strip())
+    if "," in s: s = s.replace(".","").replace(",",".")
+    else: s = s.replace(",",".")
+    try: return float(s)
+    except: return 0.0
 
+def normalize_date(s):
+    if not s: return None
+    s = str(s).strip()
+    for fmt in ("%Y-%m-%d", "%d/%m/%Y"):
+        try: return datetime.strptime(s[:10], fmt).strftime("%Y-%m-%d")
+        except: pass
+    return None
 
 def monthly_until_year_end(date_iso):
-    """
-    Recebe 'YYYY-MM-DD' e retorna datas ISO mensais do mês inicial até dezembro do mesmo ano,
-    preservando o dia (se não existir no mês, usa o último dia daquele mês).
-    """
-    if not date_iso:
-        return []
-    try:
-        d = datetime.strptime(date_iso, "%Y-%m-%d")
-    except Exception:
-        return []
-    results = []
-    year = d.year
-    start_month = d.month
-    day = d.day
+    if not date_iso: return []
+    try: d = datetime.strptime(date_iso, "%Y-%m-%d")
+    except: return []
+    year, month, day = d.year, d.month, d.day
+    def last_day(y,m):
+        return (datetime(y+1,1,1) if m==12 else datetime(y,m+1,1) - timedelta(days=1)).day
+    dates = []
+    for m in range(month, 13):
+        ld = last_day(year, m)
+        use = min(day, ld)
+        dates.append(datetime(year, m, use).date())
+    return dates
 
-    def last_day_of_month(y, m):
-        if m == 12:
-            nxt = datetime(y+1, 1, 1)
-        else:
-            nxt = datetime(y, m+1, 1)
-        return (nxt - timedelta(days=1)).day
+def import_legacy_if_empty():
+    """Importa dados do gastos.json na primeira execução."""
+    with SessionLocal() as db:
+        count = db.query(Gasto).count()
+        if count > 0:
+            return
+        if not LEGACY_JSON.exists():
+            return
+        try:
+            raw = json.loads(LEGACY_JSON.read_text(encoding="utf-8"))
+            if isinstance(raw, dict):
+                gastos_raw = raw.get("gastos", [])
+                categorias_raw = raw.get("categorias", [])
+            else:
+                gastos_raw = raw
+                categorias_raw = []
+            # categorias
+            nomes = set([c for c in categorias_raw if c]) | { (g.get("categoria") or "").strip() for g in gastos_raw if g.get("categoria") }
+            for n in sorted({x for x in nomes if x}):
+                db.add(Categoria(nome=n))
+            # gastos
+            for g in gastos_raw:
+                data_iso = normalize_date(g.get("data"))
+                if not data_iso: continue
+                db.add(Gasto(
+                    data = datetime.strptime(data_iso, "%Y-%m-%d").date(),
+                    categoria = g.get("categoria") or "Sem categoria",
+                    descricao = g.get("descricao") or "",
+                    valor = parse_brl_to_float(g.get("valor")),
+                ))
+            db.commit()
+        except Exception as e:
+            print("Import JSON skipped:", e)
 
-    for m in range(start_month, 13):
-        ld = last_day_of_month(year, m)
-        use_day = day if day <= ld else ld
-        results.append(datetime(year, m, use_day).strftime("%Y-%m-%d"))
-    return results
-
-
-def load_store():
-    """Carrega o arquivo inteiro, aceitando lista simples ou dict{'gastos': [...], 'categorias': [...]}."""
-    if not DB_PATH.exists():
-        return {"gastos": [], "categorias": []}
-    try:
-        with open(DB_PATH, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            if isinstance(data, list):
-                return {"gastos": data, "categorias": []}
-            if isinstance(data, dict):
-                data.setdefault("gastos", [])
-                data.setdefault("categorias", [])
-                return data
-            return {"gastos": [], "categorias": []}
-    except Exception:
-        return {"gastos": [], "categorias": []}
-
+import_legacy_if_empty()
 
 def get_categorias():
-    """Lê categorias do JSON (store['categorias']) ou infere dos gastos."""
-    store = load_store()
-    cats = store.get("categorias") or []
-    if not cats:
-        cats = sorted(list({
-            (g.get("categoria") or "").strip()
-            for g in store.get("gastos", [])
-            if g.get("categoria")
-        }))
-    return cats
+    with SessionLocal() as db:
+        nomes = [c.nome for c in db.query(Categoria).order_by(Categoria.nome.asc()).all()]
+        if not nomes:
+            nomes = ["Fixo","Lazer","Itens Casa"]
+        return nomes
 
-
-def load_gastos():
-    store = load_store()
-    gastos = []
-    for g in store.get("gastos", []):
-        data_raw = g.get("data")
-        data_iso = normalize_date(data_raw)
-        gastos.append({
-            "data": data_raw,
-            "data_iso": data_iso,
-            "categoria": g.get("categoria"),
-            "descricao": g.get("descricao"),
-            "valor": parse_brl_to_float(g.get("valor")),
-        })
-    return gastos
-
-
-def save_gastos(gastos):
-    """Mantém a estrutura original do JSON se ele tiver 'categorias'."""
-    store = load_store()
-    store["gastos"] = gastos
-    with open(DB_PATH, "w", encoding="utf-8") as f:
-        json.dump(store, f, ensure_ascii=False, indent=2)
-
-
-def agregacoes(gastos):
-    """Retorna total do mês atual, total anual, totais mensais e por categoria."""
-    totais_mes = {}
-    totais_categoria = {}
-    total_mes_atual = 0.0
-    total_anual = 0.0
-
-    now = datetime.now()
-    ano_atual = now.year
-    mes_atual = now.month
-
-    for g in gastos:
-        valor = parse_brl_to_float(g.get("valor"))
-        data = g.get("data_iso") or normalize_date(g.get("data"))
-        if not data:
-            continue
-        try:
-            d = datetime.strptime(data, "%Y-%m-%d")
-        except Exception:
-            continue
-
-        ym = d.strftime("%Y-%m")
-        totais_mes[ym] = totais_mes.get(ym, 0.0) + valor
-
-        cat = g.get("categoria") or "Sem categoria"
-        totais_categoria[cat] = totais_categoria.get(cat, 0.0) + valor
-
-        if d.year == ano_atual:
-            total_anual += valor
-            if d.month == mes_atual:
-                total_mes_atual += valor
-
-    # Ordenações úteis
-    totais_mes = dict(sorted(totais_mes.items(), key=lambda kv: kv[0]))
-    totais_categoria = dict(sorted(totais_categoria.items(), key=lambda kv: kv[1], reverse=True))
-
-    return total_mes_atual, total_anual, totais_mes, totais_categoria
-
-
-# -------------------- Rotas --------------------
+# --------- ROTAS ---------
 @app.route("/")
 def dashboard():
-    gastos = load_gastos()
-    total_mes_atual, total_anual, totais_mes, totais_categoria = agregacoes(gastos)
-    return render_template(
-        "dashboard.html",
-        total_geral=total_mes_atual,  # rótulo ajustado no template para "Total do Mês Atual"
-        total_anual=total_anual,
-        totais_mes=totais_mes,
-        totais_categoria=totais_categoria
-    )
-
+    with SessionLocal() as db:
+        rows = db.query(Gasto).all()
+        now = datetime.now()
+        total_mes = 0.0
+        total_ano = 0.0
+        totais_mes = {}
+        totais_categoria = {}
+        for r in rows:
+            valor = float(r.valor)
+            ym = r.data.strftime("%Y-%m")
+            totais_mes[ym] = totais_mes.get(ym, 0.0) + valor
+            totais_categoria[r.categoria] = totais_categoria.get(r.categoria, 0.0) + valor
+            if r.data.year == now.year:
+                total_ano += valor
+                if r.data.month == now.month:
+                    total_mes += valor
+        totais_mes = dict(sorted(totais_mes.items()))
+        totais_categoria = dict(sorted(totais_categoria.items(), key=lambda kv: kv[1], reverse=True))
+    return render_template("dashboard.html",
+                           total_geral=total_mes,
+                           total_anual=total_ano,
+                           totais_mes=totais_mes,
+                           totais_categoria=totais_categoria)
 
 @app.route("/listar")
 def listar_gastos():
-    base = load_gastos()
-    # anexa índice original para permitir editar/excluir corretos mesmo após ordenação
-    gastos = []
-    for i, g in enumerate(base):
-        item = dict(g)
-        item["idx"] = i
-        gastos.append(item)
-    # Ordena por data desc (sem perder o idx)
-    try:
-        gastos.sort(key=lambda g: g.get("data_iso") or g.get("data") or "", reverse=True)
-    except Exception:
-        pass
-    return render_template("listar.html", gastos=gastos)
+    with SessionLocal() as db:
+        gastos = db.query(Gasto).order_by(Gasto.data.desc(), Gasto.id.desc()).all()
+        # adaptamos para o template atual (usa g.data, g.data_iso, g.valor, g.categoria, g.descricao, g.id)
+        view = []
+        for g in gastos:
+            view.append({
+                "id": g.id,
+                "data": g.data.strftime("%d/%m/%Y"),
+                "data_iso": g.data.strftime("%Y-%m-%d"),
+                "categoria": g.categoria,
+                "descricao": g.descricao,
+                "valor": float(g.valor),
+            })
+    return render_template("listar.html", gastos=view)
 
-
-@app.route("/adicionar", methods=["GET", "POST"])
+@app.route("/adicionar", methods=["GET","POST"])
 def adicionar():
     if request.method == "POST":
         data = request.form.get("data")
         categoria = request.form.get("categoria")
-        descricao = request.form.get("descricao")
-        valor_raw = request.form.get("valor")
-
-        if not data or not categoria or not valor_raw:
-            flash("Preencha data, categoria e valor.", "warning")
-            return redirect(url_for("adicionar"))
-
-        valor = parse_brl_to_float(valor_raw)
-        gastos = load_gastos()
-
-        # replicar se marcado OU se a categoria for 'Fixo'
-        replicate = (request.form.get("replicar_fim_ano") == "1") or ((categoria or "").strip().lower() == "fixo")
-        if replicate:
-            iso = normalize_date(data)
-            for dt in monthly_until_year_end(iso):
-                gastos.append({
-                    "data": dt,
-                    "categoria": categoria,
-                    "descricao": descricao,
-                    "valor": valor,
-                })
-            flash("Gastos fixos adicionados mensalmente até dezembro.", "success")
-        else:
-            gastos.append({
-                "data": normalize_date(data) or data,
-                "categoria": categoria,
-                "descricao": descricao,
-                "valor": valor,
-            })
-            flash("Gasto adicionado com sucesso!", "success")
-
-        save_gastos(gastos)
+        descricao = request.form.get("descricao") or ""
+        valor = parse_brl_to_float(request.form.get("valor"))
+        if not data or not categoria:
+            flash("Preencha data e categoria.", "warning"); return redirect(url_for("adicionar"))
+        iso = normalize_date(data)
+        if not iso:
+            flash("Data inválida.", "warning"); return redirect(url_for("adicionar"))
+        with SessionLocal() as db:
+            # garante categoria existente
+            if not db.query(Categoria).filter_by(nome=categoria).first():
+                db.add(Categoria(nome=categoria)); db.commit()
+            replicate = (request.form.get("replicar_fim_ano") == "1") or (categoria.strip().lower() == "fixo")
+            if replicate:
+                for d in monthly_until_year_end(iso):
+                    db.add(Gasto(data=d, categoria=categoria, descricao=descricao, valor=valor))
+                flash("Gastos fixos adicionados mensalmente até dezembro.", "success")
+            else:
+                d = datetime.strptime(iso, "%Y-%m-%d").date()
+                db.add(Gasto(data=d, categoria=categoria, descricao=descricao, valor=valor))
+                flash("Gasto adicionado com sucesso!", "success")
+            db.commit()
         return redirect(url_for("listar_gastos"))
-
-    # GET
     return render_template("index.html", categorias=get_categorias())
 
-
-@app.route("/editar/<int:indice>", methods=["GET", "POST"])
-def editar(indice):
-    gastos = load_gastos()
-    if indice < 0 or indice >= len(gastos):
-        flash("Item não encontrado.", "danger")
-        return redirect(url_for("listar_gastos"))
-
-    if request.method == "POST":
-        data = request.form.get("data")
-        categoria = request.form.get("categoria")
-        descricao = request.form.get("descricao")
-        valor_raw = request.form.get("valor")
-
-        if not data or not categoria or not valor_raw:
-            flash("Preencha data, categoria e valor.", "warning")
-            return redirect(url_for("editar", indice=indice))
-
-        gastos[indice] = {
-            "data": normalize_date(data) or data,
-            "categoria": categoria,
-            "descricao": descricao,
-            "valor": parse_brl_to_float(valor_raw),
+@app.route("/editar/<int:gid>", methods=["GET","POST"])
+def editar(gid):
+    with SessionLocal() as db:
+        gasto = db.get(Gasto, gid)
+        if not gasto:
+            flash("Item não encontrado.", "danger"); return redirect(url_for("listar_gastos"))
+        if request.method == "POST":
+            iso = normalize_date(request.form.get("data"))
+            if not iso: flash("Data inválida.", "warning"); return redirect(url_for("editar", gid=gid))
+            gasto.data = datetime.strptime(iso, "%Y-%m-%d").date()
+            gasto.categoria = request.form.get("categoria")
+            gasto.descricao = request.form.get("descricao") or ""
+            gasto.valor = parse_brl_to_float(request.form.get("valor"))
+            # garante categoria
+            if not db.query(Categoria).filter_by(nome=gasto.categoria).first():
+                db.add(Categoria(nome=gasto.categoria))
+            db.commit()
+            flash("Gasto atualizado.", "success")
+            return redirect(url_for("listar_gastos"))
+        # GET
+        gview = {
+            "id": gasto.id,
+            "data": gasto.data.strftime("%d/%m/%Y"),
+            "data_iso": gasto.data.strftime("%Y-%m-%d"),
+            "categoria": gasto.categoria,
+            "descricao": gasto.descricao,
+            "valor": float(gasto.valor)
         }
-        save_gastos(gastos)
-        flash("Gasto atualizado.", "success")
-        return redirect(url_for("listar_gastos"))
+        return render_template("editar.html", indice=gasto.id, gasto=gview, categorias=get_categorias())
 
-    # GET
-    return render_template("editar.html", indice=indice, gasto=gastos[indice], categorias=get_categorias())
-
-
-@app.route("/excluir/<int:indice>")
-def excluir(indice):
-    gastos = load_gastos()
-    if indice < 0 or indice >= len(gastos):
-        flash("Item não encontrado.", "danger")
-        return redirect(url_for("listar_gastos"))
-    gastos.pop(indice)
-    save_gastos(gastos)
-    flash("Gasto excluído.", "info")
+@app.route("/excluir/<int:gid>")
+def excluir(gid):
+    with SessionLocal() as db:
+        gasto = db.get(Gasto, gid)
+        if not gasto:
+            flash("Item não encontrado.", "danger"); return redirect(url_for("listar_gastos"))
+        db.delete(gasto); db.commit()
+        flash("Gasto excluído.", "info")
     return redirect(url_for("listar_gastos"))
 
-
+# Render: porta dinâmica
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))  # pega a porta que o Render define
+    port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
-
