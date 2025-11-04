@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from datetime import datetime
 import re
+import os
 
 app = Flask(__name__)
 app.secret_key = "financas-secret"  # ajuste conforme necessário
@@ -258,5 +259,6 @@ def excluir(indice):
 
 
 if __name__ == "__main__":
-    # Para desenvolvimento local
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    port = int(os.environ.get("PORT", 5000))  # pega a porta que o Render define
+    app.run(host="0.0.0.0", port=port)
+
