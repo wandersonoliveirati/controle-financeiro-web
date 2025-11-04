@@ -7,6 +7,7 @@
     <div class="card-body">
       <form method="post" action="{{ url_for('editar', indice=indice) }}">
         <div class="row g-3">
+
           <!-- Data -->
           <div class="col-12 col-md-4">
             <label class="form-label">Data</label>
@@ -18,7 +19,7 @@
           <div class="col-12 col-md-4">
             <label class="form-label">Categoria</label>
             {% set atual = gasto.categoria %}
-            <select name="categoria" class="form-select" required>
+            <select id="categoria-editar" name="categoria" class="form-select" required>
               {% if categorias %}
                 {% for cat in categorias %}
                   {% if cat %}
@@ -31,11 +32,17 @@
             </select>
           </div>
 
-          <!-- Valor -->
+          <!-- Valor (classe nova: money-field) -->
           <div class="col-12 col-md-4">
             <label class="form-label">Valor</label>
-            <input type="text" name="valor" class="form-control money-input"
-                   value="{{ gasto.valor }}" required>
+            <input
+              type="text"
+              name="valor"
+              class="form-control money-field"
+              value="{{ gasto.valor }}"
+              inputmode="decimal"
+              autocomplete="off"
+              required>
           </div>
 
           <!-- Descrição -->
@@ -44,6 +51,7 @@
             <input type="text" name="descricao" class="form-control"
                    value="{{ gasto.descricao }}">
           </div>
+
         </div>
 
         <div class="d-flex gap-2 mt-3">
@@ -54,4 +62,44 @@
     </div>
   </div>
 </div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  const valorInput = document.querySelector(".money-field");
+
+  // normaliza inicial (687.62 -> 687,62; remove 'R$ ' se houver)
+  function normalizeInitial(s) {
+    if (!s) return "";
+    s = String(s).replace(/[^\d,.\-]/g, "");
+    if (s.includes(".") && !s.includes(",")) s = s.replace(".", ",");
+    const parts = s.split(",");
+    if (parts.length > 2) s = parts[0] + "," + parts.slice(1).join("").replace(/,/g, "");
+    return s;
+  }
+  valorInput.value = normalizeInitial(valorInput.value);
+
+  // apenas dígitos e UMA vírgula
+  function sanitizeTyping(s) {
+    s = String(s).replace(/[^\d,]/g, "");
+    const i = s.indexOf(",");
+    if (i !== -1) s = s.slice(0, i + 1) + s.slice(i + 1).replace(/,/g, "");
+    return s;
+  }
+  valorInput.addEventListener("input", function () {
+    const pos = this.selectionStart;
+    const before = this.value;
+    this.value = sanitizeTyping(this.value);
+    const delta = this.value.length - before.length;
+    this.setSelectionRange(Math.max(0, pos + delta), Math.max(0, pos + delta));
+  });
+
+  // submit: vírgula -> ponto
+  const form = document.querySelector("form");
+  form.addEventListener("submit", function () {
+    let s = valorInput.value.trim();
+    s = s.replace(/[^\d,.\-]/g, "").replace(/\./g, "").replace(",", ".");
+    valorInput.value = s;
+  });
+});
+</script>
 {% endblock %}

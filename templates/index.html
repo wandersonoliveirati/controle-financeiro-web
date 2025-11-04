@@ -7,6 +7,7 @@
     <div class="card-body">
       <form method="post" action="{{ url_for('adicionar') }}">
         <div class="row g-3">
+
           <!-- Data -->
           <div class="col-12 col-md-4">
             <label class="form-label">Data</label>
@@ -32,20 +33,27 @@
             </select>
           </div>
 
-          <!-- Valor -->
+          <!-- Valor (classe nova: money-field) -->
           <div class="col-12 col-md-4">
             <label class="form-label">Valor</label>
-            <input type="text" name="valor" class="form-control money-input" placeholder="R$ 0,00" required>
+            <input
+              type="text"
+              name="valor"
+              class="form-control money-field"
+              placeholder="Ex.: 504,97"
+              inputmode="decimal"
+              autocomplete="off"
+              required>
           </div>
 
           <!-- Descrição -->
           <div class="col-12">
             <label class="form-label">Descrição</label>
-            <input type="text" name="descricao" class="form-control">
+            <input type="text" name="descricao" class="form-control" placeholder="Opcional">
           </div>
 
-          <!-- Gasto fixo (escondido até selecionar "Fixo") -->
-          <div class="col-12" id="container-fixo" style="display: none;">
+          <!-- Gasto fixo (só aparece quando categoria = Fixo) -->
+          <div class="col-12" id="container-fixo" style="display:none;">
             <div class="form-check mt-2">
               <input class="form-check-input" type="checkbox" value="1" id="replicar_fim_ano" name="replicar_fim_ano">
               <label class="form-check-label" for="replicar_fim_ano">
@@ -53,6 +61,7 @@
               </label>
             </div>
           </div>
+
         </div>
 
         <div class="d-flex gap-2 mt-3">
@@ -65,23 +74,57 @@
 </div>
 
 <script>
-  // Exibir checkbox apenas se categoria for "Fixo"
-  document.addEventListener("DOMContentLoaded", function() {
-    const selectCat = document.getElementById("categoria");
-    const boxFixo = document.getElementById("container-fixo");
-
-    function toggleFixo() {
-      const val = (selectCat.value || "").toLowerCase();
-      if (val === "fixo") {
-        boxFixo.style.display = "block";
-      } else {
-        boxFixo.style.display = "none";
-        document.getElementById("replicar_fim_ano").checked = false;
-      }
+document.addEventListener("DOMContentLoaded", function () {
+  // --- Checkbox só quando categoria = Fixo ---
+  const selectCat = document.getElementById("categoria");
+  const boxFixo   = document.getElementById("container-fixo");
+  function toggleFixo() {
+    const v = (selectCat.value || "").trim().toLowerCase();
+    boxFixo.style.display = (v === "fixo") ? "block" : "none";
+    if (v !== "fixo") {
+      const cb = document.getElementById("replicar_fim_ano");
+      if (cb) cb.checked = false;
     }
+  }
+  selectCat.addEventListener("change", toggleFixo);
+  toggleFixo();
 
-    selectCat.addEventListener("change", toggleFixo);
-    toggleFixo(); // inicializa estado ao carregar a página
+  // --- Campo Valor: digitação livre com vírgula; sem formatação automática ---
+  const valorInput = document.querySelector(".money-field");
+
+  // normaliza inicial (se vier 687.62 -> 687,62; remove 'R$ ' se houver)
+  function normalizeInitial(s) {
+    if (!s) return "";
+    s = String(s).replace(/[^\d,.\-]/g, "");
+    if (s.includes(".") && !s.includes(",")) s = s.replace(".", ",");
+    const parts = s.split(",");
+    if (parts.length > 2) s = parts[0] + "," + parts.slice(1).join("").replace(/,/g, "");
+    return s;
+  }
+  valorInput.value = normalizeInitial(valorInput.value);
+
+  // permite só dígitos e UMA vírgula
+  function sanitizeTyping(s) {
+    s = String(s).replace(/[^\d,]/g, "");
+    const i = s.indexOf(",");
+    if (i !== -1) s = s.slice(0, i + 1) + s.slice(i + 1).replace(/,/g, "");
+    return s;
+  }
+  valorInput.addEventListener("input", function () {
+    const pos = this.selectionStart;
+    const before = this.value;
+    this.value = sanitizeTyping(this.value);
+    const delta = this.value.length - before.length;
+    this.setSelectionRange(Math.max(0, pos + delta), Math.max(0, pos + delta));
   });
+
+  // no submit: 504,97 -> 504.97 (sem milhar/R$)
+  const form = document.querySelector("form");
+  form.addEventListener("submit", function () {
+    let s = valorInput.value.trim();
+    s = s.replace(/[^\d,.\-]/g, "").replace(/\./g, "").replace(",", ".");
+    valorInput.value = s;
+  });
+});
 </script>
 {% endblock %}
