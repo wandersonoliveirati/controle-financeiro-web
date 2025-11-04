@@ -5,17 +5,14 @@
 
   <div class="card">
     <div class="card-body">
-      <form method="post" action="{{ url_for('editar', indice=indice) }}">
+      <form method="post" action="{{ url_for('editar', gid=indice) }}">
         <div class="row g-3">
-
-          <!-- Data -->
           <div class="col-12 col-md-4">
             <label class="form-label">Data</label>
             <input type="date" name="data" class="form-control"
                    value="{{ gasto.data_iso or gasto.data }}" required>
           </div>
 
-          <!-- Categoria (dinâmica) -->
           <div class="col-12 col-md-4">
             <label class="form-label">Categoria</label>
             {% set atual = gasto.categoria %}
@@ -32,26 +29,17 @@
             </select>
           </div>
 
-          <!-- Valor (classe nova: money-field) -->
           <div class="col-12 col-md-4">
             <label class="form-label">Valor</label>
-            <input
-              type="text"
-              name="valor"
-              class="form-control money-field"
-              value="{{ gasto.valor }}"
-              inputmode="decimal"
-              autocomplete="off"
-              required>
+            <input type="text" name="valor" class="form-control money-field"
+                   value="{{ gasto.valor }}" inputmode="decimal" autocomplete="off" required>
           </div>
 
-          <!-- Descrição -->
           <div class="col-12">
             <label class="form-label">Descrição</label>
             <input type="text" name="descricao" class="form-control"
                    value="{{ gasto.descricao }}">
           </div>
-
         </div>
 
         <div class="d-flex gap-2 mt-3">
@@ -66,8 +54,6 @@
 <script>
 document.addEventListener("DOMContentLoaded", function () {
   const valorInput = document.querySelector(".money-field");
-
-  // normaliza inicial (687.62 -> 687,62; remove 'R$ ' se houver)
   function normalizeInitial(s) {
     if (!s) return "";
     s = String(s).replace(/[^\d,.\-]/g, "");
@@ -78,7 +64,6 @@ document.addEventListener("DOMContentLoaded", function () {
   }
   valorInput.value = normalizeInitial(valorInput.value);
 
-  // apenas dígitos e UMA vírgula
   function sanitizeTyping(s) {
     s = String(s).replace(/[^\d,]/g, "");
     const i = s.indexOf(",");
@@ -93,7 +78,6 @@ document.addEventListener("DOMContentLoaded", function () {
     this.setSelectionRange(Math.max(0, pos + delta), Math.max(0, pos + delta));
   });
 
-  // submit: vírgula -> ponto
   const form = document.querySelector("form");
   form.addEventListener("submit", function () {
     let s = valorInput.value.trim();
