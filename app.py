@@ -1,8 +1,7 @@
-
 from flask import Flask, render_template, request, redirect, url_for, flash
 import json
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 import re
 import os
 
@@ -15,22 +14,24 @@ DB_PATH = BASE_DIR / "gastos.json"
 
 # -------------------- Utilidades --------------------
 def normalize_date(s):
-    """Aceita 'YYYY-MM-DD' ou 'DD/MM/YYYY' e retorna 'YYYY-MM-DD'. Retorna None se inválida."""
+    """Aceita 'YYYY-MM-DD' ou 'DD/MM/YYYY' e retorna 'YYYY-MM-DD'."""
     if not s:
         return None
     s = str(s).strip()
-    from datetime import datetime
+    # tenta ISO
     try:
-        if '-' in s and len(s) >= 10:
+        if "-" in s and len(s) >= 10:
             return datetime.strptime(s[:10], "%Y-%m-%d").strftime("%Y-%m-%d")
     except Exception:
         pass
+    # tenta BR
     try:
-        if '/' in s and len(s) >= 10:
+        if "/" in s and len(s) >= 10:
             return datetime.strptime(s[:10], "%d/%m/%Y").strftime("%Y-%m-%d")
     except Exception:
         pass
     return None
+
 
 def parse_brl_to_float(val):
     """
@@ -44,12 +45,11 @@ def parse_brl_to_float(val):
     s = str(val).strip()
     # remove R$, espaços e tudo que não é número, vírgula ou ponto e sinal
     s = re.sub(r"[^0-9,.\-]", "", s)
-    # se houver mais de um separador, mantém o último como decimal
-    if "," in s and "." in s:
-        # assume padrão brasileiro: pontos de milhar e vírgula decimal
+    # se houver vírgula, tratamos como BR (pontos de milhar e vírgula decimal)
+    if "," in s:
         s = s.replace(".", "").replace(",", ".")
     else:
-        # troca vírgula por ponto
+        # troca vírgula por ponto (fallback)
         s = s.replace(",", ".")
     try:
         return float(s)
@@ -57,9 +57,38 @@ def parse_brl_to_float(val):
         return 0.0
 
 
+def monthly_until_year_end(date_iso):
+    """
+    Recebe 'YYYY-MM-DD' e retorna datas ISO mensais do mês inicial até dezembro do mesmo ano,
+    preservando o dia (se não existir no mês, usa o último dia daquele mês).
+    """
+    if not date_iso:
+        return []
+    try:
+        d = datetime.strptime(date_iso, "%Y-%m-%d")
+    except Exception:
+        return []
+    results = []
+    year = d.year
+    start_month = d.month
+    day = d.day
+
+    def last_day_of_month(y, m):
+        if m == 12:
+            nxt = datetime(y+1, 1, 1)
+        else:
+            nxt = datetime(y, m+1, 1)
+        return (nxt - timedelta(days=1)).day
+
+    for m in range(start_month, 13):
+        ld = last_day_of_month(year, m)
+        use_day = day if day <= ld else ld
+        results.append(datetime(year, m, use_day).strftime("%Y-%m-%d"))
+    return results
+
 
 def load_store():
-    """Carrega o arquivo inteiro, podendo ser lista simples ou dict{'gastos': [...], 'categorias': [...]}"""
+    """Carrega o arquivo inteiro, aceitando lista simples ou dict{'gastos': [...], 'categorias': [...]}."""
     if not DB_PATH.exists():
         return {"gastos": [], "categorias": []}
     try:
@@ -74,6 +103,19 @@ def load_store():
             return {"gastos": [], "categorias": []}
     except Exception:
         return {"gastos": [], "categorias": []}
+
+
+def get_categorias():
+    """Lê categorias do JSON (store['categorias']) ou infere dos gastos."""
+    store = load_store()
+    cats = store.get("categorias") or []
+    if not cats:
+        cats = sorted(list({
+            (g.get("categoria") or "").strip()
+            for g in store.get("gastos", [])
+            if g.get("categoria")
+        }))
+    return cats
 
 
 def load_gastos():
@@ -99,29 +141,17 @@ def save_gastos(gastos):
     with open(DB_PATH, "w", encoding="utf-8") as f:
         json.dump(store, f, ensure_ascii=False, indent=2)
 
-def get_categorias():
-    store = load_store()
-    cats = store.get("categorias") or []
-    # Fallback: infere das despesas
-    if not cats:
-        cats = sorted(list({(g.get("categoria") or "").strip() for g in store.get("gastos", []) if g.get("categoria")}))
-    return cats
-
-    """Mantém a estrutura original do JSON se ele tiver 'categorias'."""
-    store = load_store()
-    store["gastos"] = gastos
-    with open(DB_PATH, "w", encoding="utf-8") as f:
-        json.dump(store, f, ensure_ascii=False, indent=2)
 
 def agregacoes(gastos):
-    """Retorna total do mês atual, total anual, totais mensais e por categoria"""
+    """Retorna total do mês atual, total anual, totais mensais e por categoria."""
     totais_mes = {}
     totais_categoria = {}
     total_mes_atual = 0.0
     total_anual = 0.0
 
-    ano_atual = datetime.now().year
-    mes_atual = datetime.now().month
+    now = datetime.now()
+    ano_atual = now.year
+    mes_atual = now.month
 
     for g in gastos:
         valor = parse_brl_to_float(g.get("valor"))
@@ -144,6 +174,7 @@ def agregacoes(gastos):
             if d.month == mes_atual:
                 total_mes_atual += valor
 
+    # Ordenações úteis
     totais_mes = dict(sorted(totais_mes.items(), key=lambda kv: kv[0]))
     totais_categoria = dict(sorted(totais_categoria.items(), key=lambda kv: kv[1], reverse=True))
 
@@ -154,21 +185,20 @@ def agregacoes(gastos):
 @app.route("/")
 def dashboard():
     gastos = load_gastos()
-    total_geral, total_anual, totais_mes, totais_categoria = agregacoes(gastos)
+    total_mes_atual, total_anual, totais_mes, totais_categoria = agregacoes(gastos)
     return render_template(
         "dashboard.html",
-        total_geral=total_geral,
+        total_geral=total_mes_atual,  # rótulo ajustado no template para "Total do Mês Atual"
         total_anual=total_anual,
         totais_mes=totais_mes,
         totais_categoria=totais_categoria
     )
 
 
-
 @app.route("/listar")
 def listar_gastos():
     base = load_gastos()
-    # anexa índice original para permitir editar/excluir corretos mesmo após ordenação/filtros
+    # anexa índice original para permitir editar/excluir corretos mesmo após ordenação
     gastos = []
     for i, g in enumerate(base):
         item = dict(g)
@@ -182,18 +212,11 @@ def listar_gastos():
     return render_template("listar.html", gastos=gastos)
 
 
-
 @app.route("/adicionar", methods=["GET", "POST"])
 def adicionar():
     if request.method == "POST":
         data = request.form.get("data")
-        categoria = request.form.get("categoria");
-        if categoria == "_outra":
-            categoria = request.form.get('cat-outra') or request.form.get('categoria');
-        if categoria == "_outra":
-            categoria = request.form.get("categoria", type=str) or request.form.get("categoria" )
-            # pega do input de texto 'cat-outra' se presente
-            categoria = request.form.get('categoria') or request.form.get('cat-outra') or categoria
+        categoria = request.form.get("categoria")
         descricao = request.form.get("descricao")
         valor_raw = request.form.get("valor")
 
@@ -203,16 +226,32 @@ def adicionar():
 
         valor = parse_brl_to_float(valor_raw)
         gastos = load_gastos()
-        gastos.append({
-            "data": data,
-            "categoria": categoria,
-            "descricao": descricao,
-            "valor": valor,
-        })
+
+        # replicar se marcado OU se a categoria for 'Fixo'
+        replicate = (request.form.get("replicar_fim_ano") == "1") or ((categoria or "").strip().lower() == "fixo")
+        if replicate:
+            iso = normalize_date(data)
+            for dt in monthly_until_year_end(iso):
+                gastos.append({
+                    "data": dt,
+                    "categoria": categoria,
+                    "descricao": descricao,
+                    "valor": valor,
+                })
+            flash("Gastos fixos adicionados mensalmente até dezembro.", "success")
+        else:
+            gastos.append({
+                "data": normalize_date(data) or data,
+                "categoria": categoria,
+                "descricao": descricao,
+                "valor": valor,
+            })
+            flash("Gasto adicionado com sucesso!", "success")
+
         save_gastos(gastos)
-        flash("Gasto adicionado com sucesso!", "success")
         return redirect(url_for("listar_gastos"))
 
+    # GET
     return render_template("index.html", categorias=get_categorias())
 
 
@@ -234,7 +273,7 @@ def editar(indice):
             return redirect(url_for("editar", indice=indice))
 
         gastos[indice] = {
-            "data": data,
+            "data": normalize_date(data) or data,
             "categoria": categoria,
             "descricao": descricao,
             "valor": parse_brl_to_float(valor_raw),
@@ -243,6 +282,7 @@ def editar(indice):
         flash("Gasto atualizado.", "success")
         return redirect(url_for("listar_gastos"))
 
+    # GET
     return render_template("editar.html", indice=indice, gasto=gastos[indice], categorias=get_categorias())
 
 

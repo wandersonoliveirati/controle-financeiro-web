@@ -1,37 +1,57 @@
 {% extends "base.html" %}
-
 {% block content %}
-<div class="container mt-4">
-  <h2 class="mb-4">✏️ Editar Gasto</h2>
+<div class="container">
+  <h2 class="mb-3">✏️ Editar Gasto</h2>
 
-  <form method="post">
-    <div class="mb-3">
-      <label class="form-label">Descrição</label>
-      <input type="text" name="descricao" class="form-control" value="{{ gasto.descricao }}" required>
+  <div class="card">
+    <div class="card-body">
+      <form method="post" action="{{ url_for('editar', indice=indice) }}">
+        <div class="row g-3">
+          <!-- Data -->
+          <div class="col-12 col-md-4">
+            <label class="form-label">Data</label>
+            <input type="date" name="data" class="form-control"
+                   value="{{ gasto.data_iso or gasto.data }}" required>
+          </div>
+
+          <!-- Categoria (dinâmica) -->
+          <div class="col-12 col-md-4">
+            <label class="form-label">Categoria</label>
+            {% set atual = gasto.categoria %}
+            <select name="categoria" class="form-select" required>
+              {% if categorias %}
+                {% for cat in categorias %}
+                  {% if cat %}
+                    <option value="{{ cat }}" {% if cat == atual %}selected{% endif %}>{{ cat }}</option>
+                  {% endif %}
+                {% endfor %}
+              {% else %}
+                <option value="{{ atual }}" selected>{{ atual }}</option>
+              {% endif %}
+            </select>
+          </div>
+
+          <!-- Valor -->
+          <div class="col-12 col-md-4">
+            <label class="form-label">Valor</label>
+            <input type="text" name="valor" class="form-control money-input"
+                   value="{{ gasto.valor }}" required>
+          </div>
+
+          <!-- Descrição -->
+          <div class="col-12">
+            <label class="form-label">Descrição</label>
+            <input type="text" name="descricao" class="form-control"
+                   value="{{ gasto.descricao }}">
+          </div>
+        </div>
+
+        <div class="d-flex gap-2 mt-3">
+          <button class="btn btn-primary">Salvar</button>
+          <a class="btn btn-outline-secondary" href="{{ url_for('listar_gastos') }}">Cancelar</a>
+        </div>
+      </form>
     </div>
-
-    <div class="mb-3">
-      <label class="form-label">Valor</label>
-      <input type="number" step="0.01" name="valor" class="form-control" value="{{ gasto.valor }}" required>
-    </div>
-
-    <div class="mb-3">
-      <label class="form-label">Categoria</label>
-      <select name="categoria" class="form-select">
-        {% for cat in categorias %}
-          <option value="{{ cat }}" {% if cat == gasto.categoria %}selected{% endif %}>{{ cat }}</option>
-        {% endfor %}
-      </select>
-    </div>
-
-    <div class="mb-3">
-      <label class="form-label">Data</label>
-      <input type="date" name="data" class="form-control"
-             value="{{ gasto.data.split('/')[2] }}-{{ gasto.data.split('/')[1] }}-{{ gasto.data.split('/')[0] }}" required>
-    </div>
-
-    <button type="submit" class="btn btn-success">💾 Salvar</button>
-    <a href="{{ url_for('listar_gastos') }}" class="btn btn-secondary">⬅ Voltar</a>
-  </form>
+  </div>
 </div>
 {% endblock %}
