@@ -1,0 +1,204 @@
+
+/* Evita scroll horizontal em todas as telas */
+html, body {
+    overflow-x: hidden; /* Impede rolagem horizontal */
+    width: 100%;
+    max-width: 100%;
+}
+
+/* Garante que o container não cause overflow */
+.container, .container-fluid {
+    max-width: 100%;
+    overflow-x: hidden;
+}
+
+/* Ajusta a navbar para não ultrapassar a largura da tela */
+.navbar {
+    max-width: 100%;
+    overflow-x: hidden;
+}
+
+/* Dark Mode */
+.dark-mode {
+    background-color: #121212 !important;
+    color: #e0e0e0 !important;
+}
+
+.dark-mode .card {
+    background-color: #1e1e1e !important;
+    color: #e0e0e0 !important;
+}
+
+.dark-mode .navbar {
+    background-color: #1b1b1b !important;
+}
+
+.dark-mode table {
+    color: #e0e0e0 !important;
+}
+
+.dark-mode table thead {
+    background-color: #2a2a2a !important;
+}
+
+
+/* ======= Ajustes Mobile-First ======= */
+
+/* Tipografia maior no celular para melhor leitura */
+@media (max-width: 575.98px) {
+  html { font-size: 18px; }
+  .navbar-brand { font-size: 1.15rem; }
+  .card .h4, .card .h5, .card h5 { font-size: 1.15rem; }
+  .form-control, .form-select, .btn { min-height: 48px; font-size: 1rem; }
+  .btn { padding: 0.65rem 1rem; }
+  .container, .container-fluid { padding-left: 0.85rem; padding-right: 0.85rem; }
+}
+
+/* Evita que o dropdown estoure a tela e mantém alinhado à direita */
+.dropdown-menu-end {
+  right: 0;
+  left: auto;
+}
+
+/* Navbar: garante que o menu colapsado ocupe largura total sob o ícone */
+@media (max-width: 991.98px) {
+  .navbar .navbar-collapse {
+    width: 100%;
+  }
+  .navbar .dropdown-menu {
+    width: 100%;
+  }
+}
+
+/* Cartões mais visualmente separados */
+.card {
+  border-radius: 1rem;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.06);
+}
+
+/* Dashboard: separador vertical entre os gráficos em telas médias+ */
+@media (min-width: 768px) {
+  .dash-split > .col-md-6 + .col-md-6 {
+    border-left: 1px solid rgba(0,0,0,0.08);
+  }
+  .dark-mode .dash-split > .col-md-6 + .col-md-6 {
+    border-left-color: rgba(255,255,255,0.12);
+  }
+}
+
+/* Canvas de gráfico responsivo */
+.chart-wrap {
+  position: relative;
+  width: 100%;
+  height: 340px; /* altura boa para celular */
+}
+@media (min-width: 768px) {
+  .chart-wrap { height: 420px; }
+}
+
+/* Tabelas responsivas e legíveis no celular */
+.table {
+  font-size: 0.95rem;
+}
+.table thead th {
+  white-space: nowrap;
+}
+.table-responsive {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Input tap targets */
+label { margin-bottom: 0.35rem; }
+
+
+/* FAB - Botão flutuante para mobile */
+.fab{
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #0d6efd;
+  color: #fff;
+  font-size: 32px;
+  text-decoration: none;
+  box-shadow: 0 10px 20px rgba(13,110,253,.3);
+  z-index: 1080;
+}
+.fab:hover{ color:#fff; filter: brightness(0.95); }
+.dark-mode .fab{ background:#0b5ed7; }
+
+
+/* ---- Ajustes de usabilidade no celular ---- */
+@media (max-width: 575.98px){
+  .table td, .table th { padding: .5rem .5rem; }
+  .btn.btn-sm { padding: .35rem .55rem; font-size: .9rem; }
+  .alert { padding: .5rem .75rem; }
+  #busca, #filtro-categoria, #filtro-mes { width: 100%; }
+  .btn-group label.btn { flex: 1 1 auto; }
+}
+
+/* Barra de filtros fixa no topo (mobile) */
+@media (max-width: 575.98px){
+  .container > .d-flex.gap-2 { position: sticky; top: 64px; z-index: 100; background: var(--bs-body-bg); padding-bottom: .5rem; }
+}
+
+
+/* Navbar: itens alinhados à direita também no menu colapsado */
+@media (max-width: 991.98px){
+  #topNav .navbar-nav { text-align: right; width: 100%; }
+  #topNav .nav-item { margin-left: auto; }
+}
+
+
+/* ---- Melhorias de leitura na lista de Itens ---- */
+.table thead th { position: sticky; top: 56px; z-index: 2; background: var(--bs-body-bg); }
+.table tbody tr:nth-child(odd){ background-color: rgba(0,0,0,.02); }
+.dark-mode .table tbody tr:nth-child(odd){ background-color: rgba(255,255,255,.03); }
+
+@media (max-width: 575.98px){
+  .table td, .table th { padding: .65rem .5rem; }
+  #wrap-itens .btn.btn-sm { padding: .35rem .55rem; font-size: .85rem; }
+}
+
+
+/* ---- Cards de itens (mobile) ---- */
+.item-card { background: var(--bs-body-bg); box-shadow: 0 1px 6px rgba(0,0,0,.06); border-radius: 12px; }
+.dark-mode .item-card{ box-shadow: 0 1px 8px rgba(255,255,255,.06); }
+@media (min-width: 576px){
+  #wrap-cards{ display: none !important; }
+}
+
+
+/* ===== Menu colapsado (mobile) centralizado ===== */
+@media (max-width: 991.98px){
+  #topNav .navbar-nav {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 1rem; /* espaçamento entre os itens */
+    padding: 1rem 0;
+  }
+
+  #topNav .nav-item {
+    width: 100%;
+  }
+
+  #topNav .nav-link {
+    font-size: 1.1rem;
+    padding: 0.75rem 0;
+    width: 100%;
+    color: white;
+  }
+
+  #topNav .nav-link:hover {
+    background-color: rgba(255,255,255,0.1);
+    border-radius: 6px;
+  }
+}

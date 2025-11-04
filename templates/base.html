@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="pt-br">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>Controle Financeiro</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  </head>
+  <body class="bg-light">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary sticky-top shadow-sm">
+      <div class="container-fluid">
+        <a class="navbar-brand fw-semibold" href="{{ url_for('dashboard') }}">💰 Finanças</a>
+
+        <!-- Ícone hamburguer -->
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#topNav" aria-controls="topNav" aria-expanded="false" aria-label="Alternar navegação">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <!-- Menu alinhado à direita -->
+        <div class="collapse navbar-collapse justify-content-end" id="topNav">
+          <ul class="navbar-nav ms-auto align-items-lg-center text-lg-end w-100 justify-content-lg-end">
+            <li class="nav-item">
+              <a class="nav-link" href="{{ url_for('dashboard') }}">Dashboard</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="{{ url_for('listar_gastos') }}">Listar gastos</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="{{ url_for('adicionar') }}">Adicionar gastos</a>
+            </li>
+              </ul>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </nav>
+
+    <main class="py-3 py-md-4">
+      {% block content %}{% endblock %}
+    </main>
+
+    <script>
+      // Dark Mode simples: salva no localStorage
+      (function () {
+        const key = "financas-dark-mode";
+        const saved = localStorage.getItem(key);
+        if (saved === "1") document.body.classList.add("dark-mode");
+
+        window.addEventListener("DOMContentLoaded", function(){
+          const btn = document.getElementById("toggle-dark");
+          if (!btn) return;
+          btn.addEventListener("click", function(){
+            document.body.classList.toggle("dark-mode");
+            localStorage.setItem(key, document.body.classList.contains("dark-mode") ? "1" : "0");
+          });
+        });
+      })();
+    </script>
+
+    <script>
+      // Util: formata números BRL em spans .money ou data-currency
+      function formatBRL(value) {
+        try {
+          const n = Number(value);
+          if (isNaN(n)) return value;
+          return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n);
+        } catch (e) { return value; }
+      }
+
+      function hydrateMoneySpans() {
+        document.querySelectorAll('[data-currency], .money').forEach(el => {
+          const raw = el.dataset.value ?? el.textContent;
+          if (raw) el.textContent = formatBRL(raw.toString().replace(/[^\d.,-]/g,'' ).replace(',','.'));
+        });
+      }
+
+      // Máscara simples para inputs com .money-input
+      function attachMoneyMask() {
+        document.querySelectorAll('input.money-input').forEach(inp => {
+          inp.setAttribute('inputmode','decimal');
+          inp.addEventListener('input', () => {
+            let v = inp.value.replace(/[^\d,.-]/g, '');
+            // Normaliza vírgula para ponto internamente
+            v = v.replace(',', '.');
+            // Não formata enquanto digita, só ao sair do campo
+          });
+          inp.addEventListener('blur', () => {
+            const n = Number(inp.value.replace(/[^\d.-]/g,'').replace(',', '.'));
+            if (!isNaN(n)) inp.value = formatBRL(n);
+          });
+          // Se já vier preenchido em número cru, formata
+          if (inp.value && !inp.value.includes('R$')) {
+            const n = Number(inp.value.replace(/[^\d.-]/g,'').replace(',', '.'));
+            if (!isNaN(n)) inp.value = formatBRL(n);
+          }
+        });
+      }
+
+      document.addEventListener('DOMContentLoaded', () => {
+        hydrateMoneySpans();
+        attachMoneyMask();
+      });
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  </body>
+</html>

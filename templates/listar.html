@@ -1,0 +1,284 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container">
+  <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2 mb-3">
+    <h2 class="mb-0">📜 Gastos</h2>
+    <div class="d-flex gap-2 flex-wrap w-100">
+      <input id="busca" class="form-control" placeholder="Buscar descrição ou categoria" style="min-width: 240px;">
+      <select id="filtro-categoria" class="form-select">
+        <option value="">Todas as categorias</option>
+      </select>
+      <input id="filtro-mes" type="month" class="form-control">
+      <div class="btn-group" role="group" aria-label="Visão">
+        <input type="radio" class="btn-check" name="visao" id="visao-itens" autocomplete="off" checked>
+        <label class="btn btn-outline-secondary" for="visao-itens">Itens</label>
+        <input type="radio" class="btn-check" name="visao" id="visao-mensal" autocomplete="off">
+        <label class="btn btn-outline-secondary" for="visao-mensal">Mensal</label>
+        <input type="radio" class="btn-check" name="visao" id="visao-anual" autocomplete="off">
+        <label class="btn btn-outline-secondary" for="visao-anual">Anual</label>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cards Itens (mobile) -->
+  <div class="card d-sm-none mt-3" id="wrap-cards">
+    <div class="card-body p-2">
+      <div id="cards-itens" class="d-flex flex-column gap-2">
+        {% for g in gastos %}
+        <div class="item-card border rounded p-2" 
+             data-date="{{ g.data_iso }}" 
+             data-cat="{{ g.categoria }}" 
+             data-desc="{{ g.descricao }}">
+          <div class="d-flex justify-content-between">
+            <small class="text-muted">{{ g.data }}</small>
+            <span class="badge bg-secondary">{{ g.categoria }}</span>
+          </div>
+          <div class="fw-semibold mt-1">{{ g.descricao }}</div>
+          <div class="d-flex justify-content-between align-items-center mt-1">
+            <div class="h6 mb-0"><span class="money" data-value="{{ g.valor }}"></span></div>
+            <div class="d-flex gap-2">
+              <a class="btn btn-sm btn-outline-primary" href="{{ url_for('editar', indice=g.idx) }}">Editar</a>
+              <a class="btn btn-sm btn-outline-danger" href="{{ url_for('excluir', indice=g.idx) }}" onclick="return confirm('Deseja excluir este gasto?');">Excluir</a>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Barra de totalização dinâmica -->
+  <div class="alert alert-info d-flex flex-wrap align-items-center gap-3" id="barra-totais">
+    <div><strong>Total exibido:</strong> <span id="total-exibido" class="money">R$ 0,00</span></div>
+    <div class="vr d-none d-md-inline"></div>
+    <div><strong>Registros:</strong> <span id="qtd-exibida">0</span></div>
+  </div>
+
+  <!-- Cards Itens (mobile) -->
+  <div class="card d-sm-none mt-3" id="wrap-cards">
+    <div class="card-body p-2">
+      <div id="cards-itens" class="d-flex flex-column gap-2">
+        {% for g in gastos %}
+        <div class="item-card border rounded p-2" 
+             data-date="{{ g.data_iso }}" 
+             data-cat="{{ g.categoria }}" 
+             data-desc="{{ g.descricao }}">
+          <div class="d-flex justify-content-between">
+            <small class="text-muted">{{ g.data }}</small>
+            <span class="badge bg-secondary">{{ g.categoria }}</span>
+          </div>
+          <div class="fw-semibold mt-1">{{ g.descricao }}</div>
+          <div class="d-flex justify-content-between align-items-center mt-1">
+            <div class="h6 mb-0"><span class="money" data-value="{{ g.valor }}"></span></div>
+            <div class="d-flex gap-2">
+              <a class="btn btn-sm btn-outline-primary" href="{{ url_for('editar', indice=g.idx) }}">Editar</a>
+              <a class="btn btn-sm btn-outline-danger" href="{{ url_for('excluir', indice=g.idx) }}" onclick="return confirm('Deseja excluir este gasto?');">Excluir</a>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabela Itens -->
+  <div class="card" id="wrap-itens">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Data</th>
+              <th>Categoria</th>
+              <th>Descrição</th>
+              <th class="text-end">Valor</th>
+              <th class="text-end">Ações</th>
+            </tr>
+          </thead>
+          <tbody id="tabela-gastos">
+            {% for g in gastos %}
+            <tr data-date="{{ g.data_iso }}">
+              <td class="data">{{ g.data }}</td>
+              <td class="cat">{{ g.categoria }}</td>
+              <td class="desc">{{ g.descricao }}</td>
+              <td class="text-end val"><span class="money" data-value="{{ g.valor }}"></span></td>
+              <td class="text-end">
+                <a class="btn btn-sm btn-outline-primary" href="{{ url_for('editar', indice=g.idx) }}">Editar</a>
+                <a class="btn btn-sm btn-outline-danger" href="{{ url_for('excluir', indice=g.idx) }}" onclick="return confirm('Deseja excluir este gasto?');">Excluir</a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cards Itens (mobile) -->
+  <div class="card d-sm-none mt-3" id="wrap-cards">
+    <div class="card-body p-2">
+      <div id="cards-itens" class="d-flex flex-column gap-2">
+        {% for g in gastos %}
+        <div class="item-card border rounded p-2" 
+             data-date="{{ g.data_iso }}" 
+             data-cat="{{ g.categoria }}" 
+             data-desc="{{ g.descricao }}">
+          <div class="d-flex justify-content-between">
+            <small class="text-muted">{{ g.data }}</small>
+            <span class="badge bg-secondary">{{ g.categoria }}</span>
+          </div>
+          <div class="fw-semibold mt-1">{{ g.descricao }}</div>
+          <div class="d-flex justify-content-between align-items-center mt-1">
+            <div class="h6 mb-0"><span class="money" data-value="{{ g.valor }}"></span></div>
+            <div class="d-flex gap-2">
+              <a class="btn btn-sm btn-outline-primary" href="{{ url_for('editar', indice=g.idx) }}">Editar</a>
+              <a class="btn btn-sm btn-outline-danger" href="{{ url_for('excluir', indice=g.idx) }}" onclick="return confirm('Deseja excluir este gasto?');">Excluir</a>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabela Agrupada (Mensal/Anual) -->
+  <div class="card d-none" id="wrap-agrupado">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th id="titulo-col-grupo">Período</th>
+              <th class="text-end">Total</th>
+            </tr>
+          </thead>
+          <tbody id="tabela-agrupada"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cards Itens (mobile) -->
+  <div class="card d-sm-none mt-3" id="wrap-cards">
+    <div class="card-body p-2">
+      <div id="cards-itens" class="d-flex flex-column gap-2">
+        {% for g in gastos %}
+        <div class="item-card border rounded p-2" 
+             data-date="{{ g.data_iso }}" 
+             data-cat="{{ g.categoria }}" 
+             data-desc="{{ g.descricao }}">
+          <div class="d-flex justify-content-between">
+            <small class="text-muted">{{ g.data }}</small>
+            <span class="badge bg-secondary">{{ g.categoria }}</span>
+          </div>
+          <div class="fw-semibold mt-1">{{ g.descricao }}</div>
+          <div class="d-flex justify-content-between align-items-center mt-1">
+            <div class="h6 mb-0"><span class="money" data-value="{{ g.valor }}"></span></div>
+            <div class="d-flex gap-2">
+              <a class="btn btn-sm btn-outline-primary" href="{{ url_for('editar', indice=g.idx) }}">Editar</a>
+              <a class="btn btn-sm btn-outline-danger" href="{{ url_for('excluir', indice=g.idx) }}" onclick="return confirm('Deseja excluir este gasto?');">Excluir</a>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Botão flutuante no mobile -->
+  <a href="{{ url_for('adicionar') }}" class="fab d-md-none" aria-label="Adicionar gasto">＋</a>
+</div>
+
+<script>
+  (function(){
+    const busca = document.getElementById('busca');
+    const selCat = document.getElementById('filtro-categoria');
+    const mes = document.getElementById('filtro-mes');
+    const rows = Array.from(document.querySelectorAll('#tabela-gastos tr'));
+    const cards = Array.from(document.querySelectorAll('#cards-itens .item-card'));
+    const totalExibido = document.getElementById('total-exibido');
+    const qtdExibida = document.getElementById('qtd-exibida');
+
+    const visItens = document.getElementById('visao-itens');
+    const visMensal = document.getElementById('visao-mensal');
+    const visAnual = document.getElementById('visao-anual');
+
+    function formatBRL(n){ try{ return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(n); }catch(e){ return 'R$ '+(n||0).toFixed(2); } }
+
+    function alvoMensal(){
+      let v = mes.value;
+      if (!v) {
+        const d = new Date();
+        v = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+      }
+      return v; // 'YYYY-MM'
+    }
+    function alvoAnual(){
+      let v = mes.value;
+      if (!v) { v = String(new Date().getFullYear()); }
+      else { v = v.slice(0,4); }
+      return v; // 'YYYY'
+    }
+
+    function parseValFromEl(el){
+      const span = el.querySelector('.money');
+      const raw = span?.dataset.value ?? span?.textContent ?? '0';
+      let s = String(raw).trim();
+      if (!s) return 0;
+      if (s.includes(',')) s = s.replace(/\./g,'').replace(',','.');
+      const n = Number(s);
+      return isNaN(n) ? 0 : n;
+    }
+
+    function matchFilters(dateIso, descText, catText){
+      const q = (busca.value || '').toLowerCase();
+      const cat = selCat.value;
+      const txt = (descText + ' ' + catText).toLowerCase();
+
+      const passQ = !q || txt.includes(q);
+      const passC = !cat || (catText === cat);
+
+      if (visMensal.checked) {
+        return passQ && passC && dateIso.startsWith(alvoMensal());
+      } else if (visAnual.checked) {
+        return passQ && passC && dateIso.startsWith(alvoAnual());
+      } else {
+        const ym = mes.value;
+        const passM = !ym || dateIso.startsWith(ym);
+        return passQ && passC && passM;
+      }
+    }
+
+    function render(){
+      let total = 0, count = 0;
+      rows.forEach(r => {
+        const dateIso = r.dataset.date || '';
+        const desc = r.querySelector('.desc')?.textContent || '';
+        const cat = r.querySelector('.cat')?.textContent || '';
+        const show = matchFilters(dateIso, desc, cat);
+        r.style.display = show ? '' : 'none';
+        if (show) { total += parseValFromEl(r.querySelector('.val')); count++; }
+      });
+
+      cards.forEach(c => {
+        const dateIso = c.dataset.date || '';
+        const desc = c.dataset.desc || '';
+        const cat = c.dataset.cat || '';
+        const show = matchFilters(dateIso, desc, cat);
+        c.style.display = show ? '' : 'none';
+      });
+
+      totalExibido.textContent = formatBRL(total);
+      qtdExibida.textContent = count;
+    }
+
+    [busca, selCat, mes].forEach(el => el.addEventListener('input', render));
+    visItens.addEventListener('change', render);
+    visMensal.addEventListener('change', render);
+    visAnual.addEventListener('change', render);
+
+    render();
+  })();
+</script>
+
+{% endblock %}

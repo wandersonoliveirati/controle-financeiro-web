@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+  <h2 class="mb-3">📊 Dashboard Financeiro</h2>
+
+  <!-- Cards resumo -->
+  <div class="row g-3 mb-3 row-cols-1 row-cols-md-2">
+    <div class="col">
+      <div class="card text-center h-100">
+        <div class="card-body">
+          <p class="text-muted mb-1">Total do Mês Atual</p>
+          <p class="h3 mb-0"><span class="money" data-value="{{ total_geral }}"></span></p>
+        </div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card text-center h-100">
+        <div class="card-body">
+          <p class="text-muted mb-1">Total Anual</p>
+          <p class="h3 mb-0"><span class="money" data-value="{{ total_anual }}"></span></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Gráficos: divididos ao meio em telas médias+; empilham no mobile -->
+  <div class="row g-3 dash-split">
+    <div class="col-12 col-md-6">
+      <div class="card h-100">
+        <div class="card-body">
+          <h6 class="mb-3">Gastos por mês</h6>
+          <div class="chart-wrap">
+            <canvas id="graficoMes"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-6">
+      <div class="card h-100">
+        <div class="card-body">
+          <h6 class="mb-3">Gastos por categoria</h6>
+          <div class="chart-wrap">
+            <canvas id="graficoCategoria"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Dados JSON injetados pelo Flask -->
+<script id="data-mes" type="application/json">
+  {{ totais_mes|tojson }}
+</script>
+<script id="data-cat" type="application/json">
+  {{ totais_categoria|tojson }}
+</script>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  // Pegando os dados dos blocos JSON
+  const totaisMes = JSON.parse(document.getElementById("data-mes").textContent);
+  const totaisCategoria = JSON.parse(document.getElementById("data-cat").textContent);
+
+  // Configuração padrão para melhorar visualização em telas pequenas
+  const baseOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: true, labels: { boxWidth: 14 } },
+      tooltip: { mode: 'index', intersect: false }
+    },
+    scales: {
+      x: { ticks: { maxRotation: 0 } },
+      y: { ticks: { callback: (v) => 'R$ ' + v } }
+    }
+  };
+
+  // Gráfico por mês
+  const ctxMes = document.getElementById('graficoMes');
+  new Chart(ctxMes, {
+    type: 'bar',
+    data: {
+      labels: Object.keys(totaisMes),
+      datasets: [{
+        label: 'Total (R$)',
+        data: Object.values(totaisMes),
+        backgroundColor: 'rgba(54, 162, 235, 0.7)'
+      }]
+    },
+    options: baseOptions
+  });
+
+  // Gráfico por categoria
+  const ctxCat = document.getElementById('graficoCategoria');
+  new Chart(ctxCat, {
+    type: 'doughnut',
+    data: {
+      labels: Object.keys(totaisCategoria),
+      datasets: [{
+        data: Object.values(totaisCategoria),
+        backgroundColor: [
+          'rgba(255, 99, 132, 0.7)',
+          'rgba(54, 162, 235, 0.7)',
+          'rgba(255, 206, 86, 0.7)',
+          'rgba(75, 192, 192, 0.7)',
+          'rgba(153, 102, 255, 0.7)',
+          'rgba(255, 159, 64, 0.7)'
+        ]
+      }]
+    },
+    options: {
+      ...baseOptions,
+      cutout: '55%'
+    }
+  });
+</script>
+{% endblock %}
