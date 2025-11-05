@@ -1,120 +1,158 @@
 {% extends "base.html" %}
-
 {% block content %}
-<div class="container">
-  <h2 class="mb-3">📊 Dashboard Financeiro</h2>
 
-  <!-- Cards resumo -->
-  <div class="row g-3 mb-3 row-cols-1 row-cols-md-2">
-    <div class="col">
-      <div class="card text-center h-100">
-        <div class="card-body">
-          <p class="text-muted mb-1">Total do Mês Atual</p>
-          <p class="h3 mb-0"><span class="money" data-value="{{ total_geral }}"></span></p>
+<div class="container py-3">
+
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h3 class="mb-0">📊 Dashboard Financeiro</h3>
+  </div>
+
+  <!-- KPIs do mês atual -->
+  <div class="row g-3 mb-3">
+    <div class="col-12 col-md-4">
+      <div class="card h-100">
+        <div class="card-body text-center">
+          <div class="text-muted">Total do mês</div>
+          <div class="fs-3 fw-bold" id="kpi-mes-geral" data-valor="{{ total_geral|default(0) }}">R$ 0,00</div>
         </div>
       </div>
     </div>
-    <div class="col">
-      <div class="card text-center h-100">
-        <div class="card-body">
-          <p class="text-muted mb-1">Total Anual</p>
-          <p class="h3 mb-0"><span class="money" data-value="{{ total_anual }}"></span></p>
+
+    <div class="col-6 col-md-4">
+      <div class="card h-100">
+        <div class="card-body text-center">
+          <div class="text-success">Pago</div>
+          <div class="fs-4 fw-bold" id="kpi-mes-pago" data-valor="{{ total_mes_pago|default(0) }}">R$ 0,00</div>
+          <div class="small text-muted">Registros: <span id="kpi-mes-pago-qtd">{{ qtd_mes_pago|default(0) }}</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-6 col-md-4">
+      <div class="card h-100">
+        <div class="card-body text-center">
+          <div style="color:#b36b00;">Em aberto</div>
+          <div class="fs-4 fw-bold" id="kpi-mes-aberto" data-valor="{{ total_mes_aberto|default(0) }}">R$ 0,00</div>
+          <div class="small text-muted">Registros: <span id="kpi-mes-aberto-qtd">{{ qtd_mes_aberto|default(0) }}</span></div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Gráficos: divididos ao meio em telas médias+; empilham no mobile -->
-  <div class="row g-3 dash-split">
-    <div class="col-12 col-md-6">
-      <div class="card h-100">
-        <div class="card-body">
-          <h6 class="mb-3">Gastos por mês</h6>
-          <div class="chart-wrap">
-            <canvas id="graficoMes"></canvas>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="col-12 col-md-6">
-      <div class="card h-100">
-        <div class="card-body">
-          <h6 class="mb-3">Gastos por categoria</h6>
-          <div class="chart-wrap">
-            <canvas id="graficoCategoria"></canvas>
-          </div>
+  <!-- Total anual -->
+  <div class="row g-3 mb-3">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-body d-flex justify-content-between align-items-center">
+          <div class="fw-semibold">🗓️ Total Anual</div>
+          <div class="fs-4 fw-bold" id="kpi-anual" data-valor="{{ total_anual|default(0) }}">R$ 0,00</div>
         </div>
       </div>
     </div>
   </div>
+
+  <!-- Gráficos lado a lado -->
+  <div class="row g-3">
+    <div class="col-12 col-lg-6">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="fw-semibold mb-2">Gastos por Mês</div>
+          <canvas id="chartMeses" height="240"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-6">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="fw-semibold mb-2">Gastos por Categoria</div>
+          <canvas id="chartCategorias" height="240"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </div>
 
-<!-- Dados JSON injetados pelo Flask -->
-<script id="data-mes" type="application/json">
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<!-- Dados para os gráficos como JSON puro (evita erros do linter) -->
+<script id="totaisMesData" type="application/json">
   {{ totais_mes|tojson }}
 </script>
-<script id="data-cat" type="application/json">
+<script id="totaisCategoriasData" type="application/json">
   {{ totais_categoria|tojson }}
 </script>
 
-<!-- Chart.js -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-  // Pegando os dados dos blocos JSON
-  const totaisMes = JSON.parse(document.getElementById("data-mes").textContent);
-  const totaisCategoria = JSON.parse(document.getElementById("data-cat").textContent);
-
-  // Configuração padrão para melhorar visualização em telas pequenas
-  const baseOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { display: true, labels: { boxWidth: 14 } },
-      tooltip: { mode: 'index', intersect: false }
-    },
-    scales: {
-      x: { ticks: { maxRotation: 0 } },
-      y: { ticks: { callback: (v) => 'R$ ' + v } }
-    }
-  };
-
-  // Gráfico por mês
-  const ctxMes = document.getElementById('graficoMes');
-  new Chart(ctxMes, {
-    type: 'bar',
-    data: {
-      labels: Object.keys(totaisMes),
-      datasets: [{
-        label: 'Total (R$)',
-        data: Object.values(totaisMes),
-        backgroundColor: 'rgba(54, 162, 235, 0.7)'
-      }]
-    },
-    options: baseOptions
+// === KPIs ===
+(function() {
+  const fmt = n => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(n || 0);
+  ["kpi-mes-geral","kpi-mes-pago","kpi-mes-aberto","kpi-anual"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = fmt(Number(el.getAttribute("data-valor") || "0"));
   });
+})();
 
-  // Gráfico por categoria
-  const ctxCat = document.getElementById('graficoCategoria');
-  new Chart(ctxCat, {
-    type: 'doughnut',
-    data: {
-      labels: Object.keys(totaisCategoria),
-      datasets: [{
-        data: Object.values(totaisCategoria),
-        backgroundColor: [
-          'rgba(255, 99, 132, 0.7)',
-          'rgba(54, 162, 235, 0.7)',
-          'rgba(255, 206, 86, 0.7)',
-          'rgba(75, 192, 192, 0.7)',
-          'rgba(153, 102, 255, 0.7)',
-          'rgba(255, 159, 64, 0.7)'
-        ]
-      }]
-    },
+// === Dados para gráficos (lidos dos <script type="application/json">) ===
+const totaisMes = JSON.parse(document.getElementById("totaisMesData").textContent || "{}");
+const totaisCategorias = JSON.parse(document.getElementById("totaisCategoriasData").textContent || "{}");
+
+// === Gráfico por Mês ===
+(function(){
+  const ctx = document.getElementById("chartMeses");
+  if (!ctx) return;
+  const labels = Object.keys(totaisMes);
+  const data = labels.map(k => totaisMes[k]);
+
+  new Chart(ctx, {
+    type: "bar",
+    data: { labels, datasets: [{ label: "R$ por mês", data }] },
     options: {
-      ...baseOptions,
-      cutout: '55%'
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: {
+          label: c => new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"}).format(c.parsed.y||0)
+        }}
+      },
+      scales: {
+        y: { ticks: {
+          callback: v => new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"}).format(v)
+        }}
+      }
     }
   });
+})();
+
+// === Gráfico por Categoria ===
+(function(){
+  const ctx = document.getElementById("chartCategorias");
+  if (!ctx) return;
+  const labels = Object.keys(totaisCategorias);
+  const data = labels.map(k => totaisCategorias[k]);
+
+  new Chart(ctx, {
+    type: "bar",
+    data: { labels, datasets: [{ label: "R$ por categoria", data }] },
+    options: {
+      indexAxis: "y",
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: {
+          label: c => new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"}).format(c.parsed.x||0)
+        }}
+      },
+      scales: {
+        x: { ticks: {
+          callback: v => new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"}).format(v)
+        }}
+      }
+    }
+  });
+})();
 </script>
+
 {% endblock %}

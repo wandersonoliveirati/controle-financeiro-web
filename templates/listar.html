@@ -3,7 +3,6 @@
 
 <div class="container py-3">
 
-  <!-- Título -->
   <div class="d-flex align-items-center mb-2">
     <h3 class="mb-0">🧾 Gastos</h3>
   </div>
@@ -12,16 +11,24 @@
   <div class="card mb-3">
     <div class="card-body">
       <div class="row g-2 align-items-end">
-        <div class="col-12 col-md-6">
+        <div class="col-12 col-md-5">
           <label class="form-label">Buscar descrição ou categoria</label>
           <input id="busca" type="text" class="form-control" placeholder="Ex.: aluguel, mercado, lazer...">
         </div>
 
-        <div class="col-12 col-md-3">
+        <div class="col-6 col-md-2">
           <label class="form-label">Categoria</label>
           <select id="filtro-categoria" class="form-select">
-            <option value="">Todas as categorias</option>
-            <!-- opções preenchidas no onload, a partir da lista -->
+            <option value="">Todas</option>
+          </select>
+        </div>
+
+        <div class="col-6 col-md-2">
+          <label class="form-label">Status</label>
+          <select id="filtro-status" class="form-select">
+            <option value="">Todos</option>
+            <option value="pago">Pago</option>
+            <option value="em aberto">Em aberto</option>
           </select>
         </div>
 
@@ -31,22 +38,27 @@
         </div>
       </div>
 
-      <!-- Abas de período (mesma UI para todas) -->
-      <div class="btn-group mt-3" role="group" aria-label="Modo de exibição">
-        <button type="button" class="btn btn-outline-secondary active" id="btn-itens">Itens</button>
-        <button type="button" class="btn btn-outline-secondary" id="btn-mensal">Mensal</button>
-        <button type="button" class="btn btn-outline-secondary" id="btn-anual">Anual</button>
+      <div class="btn-group mt-3 w-100 w-md-auto" role="group" aria-label="Modo de exibição">
+        <button type="button" class="btn btn-outline-secondary flex-fill" id="btn-itens">Itens</button>
+        <button type="button" class="btn btn-outline-secondary flex-fill" id="btn-mensal">Mensal</button>
+        <button type="button" class="btn btn-outline-secondary flex-fill" id="btn-anual">Anual</button>
       </div>
     </div>
   </div>
 
   <!-- Resumo -->
-  <div class="alert alert-info d-flex justify-content-between align-items-center" id="resumo">
-    <div><strong>Total exibido:</strong> <span id="total-exibido">R$ 0,00</span></div>
-    <div><strong>Registros:</strong> <span id="qtd-exibida">0</span></div>
+  <div class="alert alert-info" id="resumo">
+    <div class="d-flex flex-column flex-md-row justify-content-between gap-2 align-items-md-center">
+      <div><strong>Total exibido:</strong> <span id="total-exibido">R$ 0,00</span></div>
+      <div class="d-flex flex-wrap gap-3">
+        <div><strong>Pago:</strong> <span id="total-pago">R$ 0,00</span></div>
+        <div><strong>Em aberto:</strong> <span id="total-aberto">R$ 0,00</span></div>
+        <div><strong>Registros:</strong> <span id="qtd-exibida">0</span></div>
+      </div>
+    </div>
   </div>
 
-  <!-- Lista em cards -->
+  <!-- Cards -->
   <div id="cards-itens" class="d-flex flex-column gap-2">
     {% for g in gastos %}
     <div class="card item-card"
@@ -54,6 +66,7 @@
          data-categoria="{{ g.categoria }}"
          data-descricao="{{ g.descricao }}"
          data-valor="{{ g.valor }}"
+         data-status="{{ (g.status or 'Em aberto')|lower }}"
          data-id="{{ g.id }}">
       <div class="card-body py-2">
 
@@ -61,14 +74,29 @@
           <div class="d-flex flex-column">
             <div class="small text-muted">{{ g.data }}</div>
             <div class="fw-semibold">{{ g.descricao }}</div>
-            <span class="badge rounded-pill bg-secondary mt-1">{{ g.categoria }}</span>
+            <div class="d-flex align-items-center gap-2 mt-1">
+              <span class="badge rounded-pill bg-secondary">{{ g.categoria }}</span>
+
+              {% if (g.status or 'Em aberto') == 'Pago' %}
+                <span class="badge rounded-pill bg-success">Pago</span>
+              {% else %}
+                <span class="badge rounded-pill bg-warning text-dark">Em aberto</span>
+              {% endif %}
+            </div>
           </div>
 
           <div class="text-end">
             <div class="fs-6 fw-bold money" data-valor="{{ g.valor }}">R$ 0,00</div>
-            <div class="mt-2 d-flex justify-content-end gap-2">
+
+            <div class="mt-2 d-flex justify-content-end flex-wrap gap-2">
+              <a class="btn btn-sm btn-outline-info"
+                 href="{{ url_for('toggle_pago', gid=g.id) }}">
+                {% if (g.status or 'Em aberto') == 'Pago' %}Marcar como em aberto{% else %}Marcar como pago{% endif %}
+              </a>
+
               <a class="btn btn-sm btn-outline-primary"
                  href="{{ url_for('editar', gid=g.id) }}">Editar</a>
+
               <a class="btn btn-sm btn-outline-danger"
                  href="{{ url_for('excluir', gid=g.id) }}"
                  onclick="return confirm('Excluir este gasto?');">Excluir</a>
@@ -81,7 +109,7 @@
     {% endfor %}
   </div>
 
-  <!-- Botão flutuante adicionar -->
+  <!-- Botão flutuante -->
   <a href="{{ url_for('adicionar') }}"
      class="btn btn-primary rounded-circle position-fixed"
      style="right: 16px; bottom: 16px; width: 48px; height: 48px; display:flex; align-items:center; justify-content:center;">
@@ -90,11 +118,11 @@
 
 </div>
 
-<!-- Script de filtro/totalização -->
 <script>
 document.addEventListener("DOMContentLoaded", function () {
   const busca = document.getElementById("busca");
   const selCat = document.getElementById("filtro-categoria");
+  const selStatus = document.getElementById("filtro-status");
   const mesRef = document.getElementById("filtro-mes");
 
   const btnItens  = document.getElementById("btn-itens");
@@ -102,20 +130,24 @@ document.addEventListener("DOMContentLoaded", function () {
   const btnAnual  = document.getElementById("btn-anual");
 
   const totalExibido = document.getElementById("total-exibido");
+  const totalPago    = document.getElementById("total-pago");
+  const totalAberto  = document.getElementById("total-aberto");
   const qtdExibida   = document.getElementById("qtd-exibida");
   const cards        = Array.from(document.querySelectorAll("#cards-itens .item-card"));
   const moneySpans   = Array.from(document.querySelectorAll("#cards-itens .money"));
 
-  // formata valores visíveis
+  // localStorage keys
+  const LS = { busca:"lf_busca", categoria:"lf_categoria", status:"lf_status", mes:"lf_mes", modo:"lf_modo" };
+
   const fmtBRL = (n) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(n);
 
-  // inicializa valores formatados em cada card
+  // valores visíveis
   moneySpans.forEach(span => {
     const v = Number(span.getAttribute("data-valor") || "0");
     span.textContent = fmtBRL(v);
   });
 
-  // popula categorias únicas
+  // categorias únicas
   (function fillCategorias(){
     const set = new Set();
     cards.forEach(c => {
@@ -130,37 +162,30 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   })();
 
-  // modo de exibição
-  let modo = "itens"; // 'itens' | 'mensal' | 'anual'
+  // modo
+  let modo = "itens";
   function setModo(novo) {
     modo = novo;
     [btnItens, btnMensal, btnAnual].forEach(b => b.classList.remove("active"));
     if (novo === "itens")  btnItens.classList.add("active");
     if (novo === "mensal") btnMensal.classList.add("active");
     if (novo === "anual")  btnAnual.classList.add("active");
+    localStorage.setItem(LS.modo, modo);
     aplicarFiltros();
   }
-
   btnItens.addEventListener("click",  () => setModo("itens"));
   btnMensal.addEventListener("click", () => setModo("mensal"));
   btnAnual.addEventListener("click",  () => setModo("anual"));
 
-  // auxiliar de data
-  function ymd(dateIso) {
-    // espera 'YYYY-MM-DD' (já vem assim do backend)
-    return (dateIso || "").slice(0, 10);
-  }
-  function ym(dateIso) { return ymd(dateIso).slice(0,7); }
-  function y(dateIso)  { return ymd(dateIso).slice(0,4); }
-
-  // mês/ano de referência
+  // helpers de data
+  function ymd(dateIso) { return (dateIso || "").slice(0, 10); }
+  function ym(dateIso)  { return ymd(dateIso).slice(0, 7); }
+  function y(dateIso)   { return ymd(dateIso).slice(0, 4); }
   function mesReferencia() {
-    // retorna 'YYYY-MM' (input month) ou mês atual
     const val = (mesRef.value || "").trim();
-    if (val) return val;
+    if (val) return val; // YYYY-MM
     const d = new Date();
-    const m = String(d.getMonth() + 1).padStart(2, "0");
-    return `${d.getFullYear()}-${m}`;
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
   }
   function anoReferencia() {
     const val = (mesRef.value || "").trim();
@@ -168,60 +193,79 @@ document.addEventListener("DOMContentLoaded", function () {
     return String(new Date().getFullYear());
   }
 
-  // aplica os filtros na lista + atualiza total/contagem
   function aplicarFiltros() {
     const q = (busca.value || "").toLowerCase().trim();
     const cat = (selCat.value || "").toLowerCase();
+    const stat = (selStatus.value || "").toLowerCase(); // "" | "pago" | "em aberto"
 
-    const refYM = mesReferencia();  // YYYY-MM
-    const refY  = anoReferencia();  // YYYY
+    const refYM = mesReferencia();
+    const refY  = anoReferencia();
 
-    let total = 0;
-    let count = 0;
+    let total = 0, count = 0, somaPago = 0, somaAberto = 0;
 
     cards.forEach(card => {
       const desc = (card.getAttribute("data-descricao") || "").toLowerCase();
       const categoria = (card.getAttribute("data-categoria") || "").toLowerCase();
+      const status = (card.getAttribute("data-status") || "").toLowerCase();
       const iso = card.getAttribute("data-iso") || "";
       const val = Number(card.getAttribute("data-valor") || "0");
 
-      // filtro texto/categoria
       let ok = true;
+
       if (q && !(desc.includes(q) || categoria.includes(q))) ok = false;
       if (ok && cat && cat !== categoria) ok = false;
+      if (ok && stat && stat !== status) ok = false;
 
-      // filtro de período conforme modo
       if (ok) {
-        if (modo === "mensal") {
-          ok = ym(iso) === refYM;
-        } else if (modo === "anual") {
-          ok = y(iso) === refY;
-        } else { // itens
-          // se usuário escolheu mês no input, filtra por esse mês;
-          // se não, mostra todos
-          if (mesRef.value) ok = ym(iso) === refYM;
-        }
+        if (modo === "mensal") ok = (ym(iso) === refYM);
+        else if (modo === "anual") ok = (y(iso) === refY);
+        else if (mesRef.value) ok = (ym(iso) === refYM); // itens: se mês escolhido, filtra
       }
 
       if (ok) {
         card.style.display = "";
-        total += val;
-        count += 1;
+        total += val; count += 1;
+        if (status === "pago") somaPago += val; else somaAberto += val;
       } else {
         card.style.display = "none";
       }
     });
 
     totalExibido.textContent = fmtBRL(total);
-    qtdExibida.textContent = String(count);
+    totalPago.textContent    = fmtBRL(somaPago);
+    totalAberto.textContent  = fmtBRL(somaAberto);
+    qtdExibida.textContent   = String(count);
   }
 
-  // eventos de filtro
-  busca.addEventListener("input", aplicarFiltros);
-  selCat.addEventListener("change", aplicarFiltros);
-  mesRef.addEventListener("change", aplicarFiltros);
+  function saveFilters() {
+    localStorage.setItem(LS.busca, busca.value || "");
+    localStorage.setItem(LS.categoria, selCat.value || "");
+    localStorage.setItem(LS.status, selStatus.value || "");
+    localStorage.setItem(LS.mes, mesRef.value || "");
+  }
 
-  // primeira aplicação
+  (function restoreFilters() {
+    try {
+      busca.value    = localStorage.getItem(LS.busca) || "";
+      selCat.value   = localStorage.getItem(LS.categoria) || "";
+      selStatus.value= localStorage.getItem(LS.status) || "";
+      mesRef.value   = localStorage.getItem(LS.mes) || "";
+      const vModo    = localStorage.getItem(LS.modo) || "itens";
+      [btnItens, btnMensal, btnAnual].forEach(b => b.classList.remove("active"));
+      if (["itens","mensal","anual"].includes(vModo)) {
+        if (vModo === "itens")  btnItens.classList.add("active");
+        if (vModo === "mensal") btnMensal.classList.add("active");
+        if (vModo === "anual")  btnAnual.classList.add("active");
+        modo = vModo;
+      } else { btnItens.classList.add("active"); modo = "itens"; }
+    } catch { btnItens.classList.add("active"); modo = "itens"; }
+  })();
+
+  busca.addEventListener("input", () => { saveFilters(); aplicarFiltros(); });
+  selCat.addEventListener("change",   () => { saveFilters(); aplicarFiltros(); });
+  selStatus.addEventListener("change",() => { saveFilters(); aplicarFiltros(); });
+  mesRef.addEventListener("change",   () => { saveFilters(); aplicarFiltros(); });
+
   aplicarFiltros();
 });
 </script>

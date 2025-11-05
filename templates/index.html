@@ -8,22 +8,18 @@
       <form method="post" action="{{ url_for('adicionar') }}">
         <div class="row g-3">
 
-          <!-- Data -->
           <div class="col-12 col-md-4">
             <label class="form-label">Data</label>
             <input type="date" name="data" class="form-control" required>
           </div>
 
-          <!-- Categoria (dinâmica) -->
           <div class="col-12 col-md-4">
             <label class="form-label">Categoria</label>
             <select id="categoria" name="categoria" class="form-select" required>
               <option value="">Selecione...</option>
               {% if categorias %}
                 {% for cat in categorias %}
-                  {% if cat %}
-                    <option value="{{ cat }}">{{ cat }}</option>
-                  {% endif %}
+                  {% if cat %}<option value="{{ cat }}">{{ cat }}</option>{% endif %}
                 {% endfor %}
               {% else %}
                 <option value="Fixo">Fixo</option>
@@ -33,7 +29,6 @@
             </select>
           </div>
 
-          <!-- Valor (classe nova: money-field) -->
           <div class="col-12 col-md-4">
             <label class="form-label">Valor</label>
             <input
@@ -46,13 +41,12 @@
               required>
           </div>
 
-          <!-- Descrição -->
           <div class="col-12">
             <label class="form-label">Descrição</label>
             <input type="text" name="descricao" class="form-control" placeholder="Opcional">
           </div>
 
-          <!-- Gasto fixo (só aparece quando categoria = Fixo) -->
+          <!-- Checkbox só quando categoria = Fixo -->
           <div class="col-12" id="container-fixo" style="display:none;">
             <div class="form-check mt-2">
               <input class="form-check-input" type="checkbox" value="1" id="replicar_fim_ano" name="replicar_fim_ano">
@@ -75,7 +69,6 @@
 
 <script>
 document.addEventListener("DOMContentLoaded", function () {
-  // --- Checkbox só quando categoria = Fixo ---
   const selectCat = document.getElementById("categoria");
   const boxFixo   = document.getElementById("container-fixo");
   function toggleFixo() {
@@ -89,10 +82,9 @@ document.addEventListener("DOMContentLoaded", function () {
   selectCat.addEventListener("change", toggleFixo);
   toggleFixo();
 
-  // --- Campo Valor: digitação livre com vírgula; sem formatação automática ---
+  // Campo Valor: digitação livre com vírgula; sem formatação automática
   const valorInput = document.querySelector(".money-field");
 
-  // normaliza inicial (se vier 687.62 -> 687,62; remove 'R$ ' se houver)
   function normalizeInitial(s) {
     if (!s) return "";
     s = String(s).replace(/[^\d,.\-]/g, "");
@@ -103,7 +95,6 @@ document.addEventListener("DOMContentLoaded", function () {
   }
   valorInput.value = normalizeInitial(valorInput.value);
 
-  // permite só dígitos e UMA vírgula
   function sanitizeTyping(s) {
     s = String(s).replace(/[^\d,]/g, "");
     const i = s.indexOf(",");
@@ -118,7 +109,7 @@ document.addEventListener("DOMContentLoaded", function () {
     this.setSelectionRange(Math.max(0, pos + delta), Math.max(0, pos + delta));
   });
 
-  // no submit: 504,97 -> 504.97 (sem milhar/R$)
+  // no submit: 504,97 -> 504.97
   const form = document.querySelector("form");
   form.addEventListener("submit", function () {
     let s = valorInput.value.trim();
